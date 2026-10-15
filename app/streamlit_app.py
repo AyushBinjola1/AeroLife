@@ -1,0 +1,24 @@
+"""AeroLife dashboard entry point.
+
+Run:  streamlit run app/streamlit_app.py
+"""
+
+import sys
+from pathlib import Path
+
+import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+st.set_page_config(page_title="AeroLife RUL", layout="wide")
+
+import views  # noqa: E402
+
+pg = st.navigation([
+    st.Page(views.page_overview, title="Overview & Dataset Provenance", default=True),
+    st.Page(views.page_fleet, title="Fleet / Equipment Explorer", url_path="fleet"),
+    st.Page(views.page_sensors, title="Sensor History", url_path="sensors"),
+    st.Page(views.page_prediction, title="RUL Prediction", url_path="prediction"),
+    st.Page(views.page_maintenance, title="Maintenance Planning Demo", url_path="maintenance"),
+    st.Page(views.page_evaluation, title="Model Evaluation & Limitations", url_path="evaluation"),
+])
+pg.run()

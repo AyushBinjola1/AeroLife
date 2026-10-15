@@ -1,0 +1,103 @@
+# AeroLife: Remaining Useful Life Estimation from Multi-Sensor Time Series
+
+*UCS321 project report. Draft: method and verification are complete; results are BLOCKED.*
+
+> Status: no permitted dataset has been approved (see `FEASIBILITY.md`). Sections 6–8 stay empty
+> until the pipeline has been run on approved data. Fill them from `reports/tables` and
+> `reports/figures` only.
+
+## Abstract
+
+*To be written after results exist.* It must state the dataset's provenance (measured or
+simulated), the number of independent units, the time unit, and the measured comparison between
+the LSTM and baselines.
+
+## 1. Introduction and assignment context
+
+The assignment is set in a Rolls-Royce Aerospace context: estimate the RUL of turbofan engines from
+multi-sensor time series to support proactive maintenance. This work has no access to Rolls-Royce
+data, no affiliation, and no operational validation. The project's own requirement is that only
+real measured data be used.
+
+## 2. Dataset feasibility
+
+Summarise `FEASIBILITY.md`:
+- public turbofan run-to-failure datasets (C-MAPSS, N-CMAPSS, the PHM challenges) are simulation-generated;
+- the real aviation datasets found have no defensible RUL labels;
+- the faculty decision (A or B) and its consequences for wording and claims.
+
+## 3. Problem formulation
+
+RUL(t) = T_fail − t, for units whose end of life T_fail is documented by the publisher.
+- Censored units get no labels.
+- An optional cap C gives the training target min(RUL, C). It is chosen on validation units, and
+  uncapped RUL is always reported.
+- Inputs at time t: measured channels and documented settings at times ≤ t, plus elapsed time t.
+- Never used as inputs: T_fail, RUL, run length, health parameters or degradation states.
+
+## 4. Method
+
+### 4.1 Data pipeline
+1. Raw files are immutable and checksummed (`docs/data_policy.md`).
+2. An adapter writes canonical tables, which are schema-validated (`schema.py`).
+3. Whole units are split into train/validation/test, stratified by operating condition, and the
+   manifest is saved (`splits.py`).
+4. Causal preprocessing is fitted on training units only (`preprocessing.py`):
+   - forward-fill imputation, with the training median for leading gaps;
+   - removal of channels that are constant on training units;
+   - optional trailing rolling mean;
+   - standardisation.
+5. Vibration only: one feature row per recording (`features.py`). Formulas are given in the
+   module docstring.
+6. Windows of length L are built inside each unit, labelled at their last step. Stride is anchored
+   at the final observation. Histories shorter than L are not predicted (`windowing.py`).
+
+### 4.2 Models
+- Constant baseline: median of training targets.
+- Age baseline: empirical mean residual life of training units given current age.
+- Ridge regression and Random Forest on the same windows, using summary features (last, mean, std,
+  min, max, slope per input).
+- LSTM: Input(L, F) → LSTM(32) → Dropout(0.2) → Dense(16, ReLU) → Dense(1, softplus).
+  - Adam optimiser, Huber loss.
+  - Early stopping, ReduceLROnPlateau and best checkpoint, all on validation loss.
+  - Seeds 42, 43, 44; op determinism enabled. Remaining nondeterminism comes from multithreaded
+    CPU kernels and is reported as seed spread.
+
+### 4.3 Evaluation protocol
+- Primary metrics: per-unit MAE and RMSE, averaged over units, in the dataset's time unit.
+- Also reported:
+  - pooled window metrics;
+  - early-life vs near-failure MAE;
+  - overestimation frequency and magnitude;
+  - 95% unit-bootstrap interval;
+  - training time, single-window latency and parameter count.
+- PHM08 score only when the time unit is cycles.
+- Ablation: sequence length, selected on validation units.
+
+## 5. Verification
+
+38 automated tests (`python -m pytest -q`) check:
+- unit disjointness and censored-unit exclusion;
+- that windows never cross units and are labelled at their last step;
+- that changing future values leaves past features unchanged;
+- that preprocessing statistics ignore held-out units;
+- schema rejection of malformed, leaky and censored-with-life inputs;
+- that saved-artifact inference matches in-pipeline predictions, ignores label columns, and is
+  unchanged by truncating the history;
+- that the dashboard renders empty states and replay without errors.
+
+The end-to-end tests use a tiny hand-written logic fixture. They verify mechanics only and produce
+no reported result.
+
+## 6. Results: BLOCKED
+## 7. Error analysis and ablation: BLOCKED
+## 8. Dashboard demonstration: BLOCKED (empty states verified)
+
+## 9. Limitations
+See `docs/limitations.md`.
+
+## 10. Conclusion
+*To be written after results exist.*
+
+## References
+See `FEASIBILITY.md` → Sources.

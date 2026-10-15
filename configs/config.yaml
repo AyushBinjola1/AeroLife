@@ -1,0 +1,80 @@
+# AeroLife project configuration.
+# Every value that depends on the dataset is null until the dataset gate is
+# resolved (see FEASIBILITY.md). Scripts refuse to train or evaluate while
+# dataset.gate_status is "blocked".
+
+project:
+  title: "AeroLife: Remaining Useful Life Estimation from Multi-Sensor Time Series"
+  model_version: "0.1.0"
+
+dataset:
+  # blocked  -> no permitted dataset; only schema/tests/docs/empty dashboard work
+  # approved -> a dataset or faculty-approved alternative is recorded below
+  gate_status: blocked
+  decision: null          # "A" (disclosed simulation benchmark) or "B" (real bearing data)
+  approved_by: null       # name/role of the faculty member who authorised the decision
+  approved_on: null       # ISO date
+  name: null
+  spec_path: null         # e.g. configs/dataset_spec.yaml (copy docs/dataset_spec_TEMPLATE.yaml)
+
+paths:
+  raw_dir: data/raw               # immutable downloaded files (never edited)
+  canonical_dir: data/canonical   # parsed observations.csv + units.csv
+  splits_dir: data/splits
+  artifacts_dir: artifacts
+  reports_dir: reports
+
+split:
+  # group_holdout: units -> train/val/test before any windowing
+  # leave_one_unit_out: used for validation when units are few
+  method: group_holdout
+  val_fraction: 0.2
+  test_fraction: 0.2
+  stratify_by_condition: true
+  seed: 42
+  # Explicit unit lists override the fractions when set.
+  train_units: null
+  val_units: null
+  test_units: null
+
+targets:
+  # Optional cap on the training target. Choose on validation units only and
+  # always report uncapped (physical) RUL alongside. null = no cap.
+  rul_cap: null
+
+preprocessing:
+  constant_std_threshold: 1.0e-8   # channels with train std below this are dropped
+  rolling_window: 0                # trailing rolling-mean length in steps; 0 = off
+  include_elapsed_time: true       # time since start of the run, known at prediction time
+
+windowing:
+  sequence_length: 30   # tuned on validation units only
+  stride: 1
+  short_history: refuse # histories shorter than sequence_length -> "insufficient history"
+
+model:
+  type: lstm            # lstm | gru | simplernn
+  units: 32
+  dropout: 0.2
+  dense_units: 16
+  loss: huber           # mae | huber | mse
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 100
+  patience: 10
+  seeds: [42, 43, 44]
+
+baselines:
+  ridge_alpha: 1.0
+  rf_n_estimators: 300
+  rf_max_depth: null
+
+evaluation:
+  near_failure_threshold: null   # dataset time units; set once the dataset is approved
+  bootstrap_samples: 2000
+
+maintenance_demo:
+  # Demonstration thresholds in dataset time units. NOT manufacturer-approved,
+  # NOT a dispatch or airworthiness criterion.
+  warn_threshold: null
+  critical_threshold: null

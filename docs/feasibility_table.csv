@@ -1,0 +1,7 @@
+dataset,equipment,sensor_values,units,event_labels,verdict
+NASA C-MAPSS,"None (C-MAPSS simulation model)","Simulated, noise added",100-260 per subset,Simulated failure; official test RUL file,Reject for real-only; Decision A candidate
+N-CMAPSS,"None (CMAPSS model driven by real recorded flight conditions)","Simulated outputs; real operating conditions",128 (8 subsets),Simulated end of life,Reject for real-only; Decision A candidate
+PHM 2008 / 2021 challenge data,Same as C-MAPSS / N-CMAPSS,Simulated,as above,as above,Reject
+HIT aero-engine inter-shaft bearing,Real aero-engine test rig,Measured,No run-to-failure units,Seeded fault classes only,Reject (no RUL labels)
+NASA DASHlink flight-recorder data,Real airline flight recorders,Measured,Flights,No engine end-of-life events found,Reject (no RUL labels)
+XJTU-SY bearings,Real accelerated bearing life tests (15 bearings),Measured vibration,15,Run-to-failure; threshold definition to confirm (10xAh vs 20 g),Decision B candidate (pending)

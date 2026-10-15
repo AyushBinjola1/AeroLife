@@ -1,0 +1,19 @@
+# Copy to configs/dataset_spec.yaml after a faculty decision; fill ONLY from publisher documentation.
+name: null                 # e.g. "XJTU-SY Bearing Datasets" (Decision B)
+adapter: null              # key in aerolife.adapters.REGISTRY
+time_unit: null            # e.g. "minute" (bearing tests) or "cycle" (C-MAPSS)
+time_step_meaning: null    # e.g. "one 1.28 s vibration recording every 1 min of test time"
+waveform_sampling_hz: null # vibration only; NOT the interval between recordings
+recording_interval: null   # e.g. "1 minute"
+input_columns: []          # measured channels / documented settings used as model inputs
+channel_units: {}          # column -> physical unit
+condition_columns: []      # documented operating condition identifiers
+event_definition: null     # publisher's end-of-life / failure criterion, quoted
+censoring: null            # how censored units are identified, if any
+source:
+  url: null
+  mirror_used: null
+  citation: null
+  release: null
+  retrieved_on: null
+  usage_terms: null

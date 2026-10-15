@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+# Raw publisher files are large and redistributable only under their own terms;
+# their checksums live in data/provenance_manifest.json (committed).
+data/raw/*
+!data/raw/.gitkeep
+data/canonical/*.csv
+artifacts/**/ckpt_*.keras
+artifacts/ablation/

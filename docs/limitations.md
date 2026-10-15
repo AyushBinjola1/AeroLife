@@ -1,0 +1,9 @@
+- **No permitted dataset yet.** Training, evaluation, figures and the replay demo are blocked until faculty record Decision A or B (see `FEASIBILITY.md`). No result is shown that was not measured.
+- **Few independent units.** Thousands of overlapping windows from a handful of units are not thousands of independent experiments. Unit-level metrics and unit-bootstrap intervals are primary, and both become unreliable when there are few units.
+- **Simulation (Decision A).** C-MAPSS / N-CMAPSS sensor values and degradation are produced by a model. Good performance on them does not show performance on real engines.
+- **Accelerated tests (Decision B).** Bearing life tests run under elevated load and speed. Lifetimes are in minutes of test time and are not transferable to bearing service life, and nothing here shows transfer to aircraft engines.
+- **End-of-life definition.** RUL is measured to the publisher's documented failure or stop criterion, not to physical destruction. A different criterion changes every label.
+- **Operating-condition coverage.** If a test unit's condition is not represented in training, the test measures transfer and not interpolation. The split manifest records which.
+- **No calibrated uncertainty.** No prediction intervals are reported. Seed-to-seed spread is not a confidence interval.
+- **Maintenance thresholds are demonstrations.** They are not manufacturer-approved and do not support any dispatch or airworthiness decision.
+- **No Rolls-Royce data or affiliation.** Rolls-Royce appears only as the assignment context.
