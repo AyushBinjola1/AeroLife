@@ -12,7 +12,7 @@ a = p.parse_args()
 cfg = load_config(a.config)
 ds = cfg["dataset"]
 print(f"dataset gate      : {gate_status(cfg)}")
-print(f"faculty decision  : {ds.get('decision') or 'pending (A or B, see FEASIBILITY.md)'}")
+print(f"dataset decision  : {ds.get('decision') or 'pending (A or B, see FEASIBILITY.md)'}")
 canon = resolve(cfg, "canonical_dir") / "observations.csv"
 print(f"canonical data    : {'present' if canon.exists() else 'absent'}")
 split = resolve(cfg, "splits_dir") / "split_manifest.json"

@@ -111,7 +111,7 @@ def page_overview():
     bundle = get_bundle()
     c1, c2, c3 = st.columns(3)
     c1.metric("Dataset gate", GATE)
-    c2.metric("Faculty decision", CFG["dataset"].get("decision") or "pending")
+    c2.metric("Dataset decision", CFG["dataset"].get("decision") or "pending")
     c3.metric("Trained model", "yes" if bundle else "no")
     if GATE != "approved":
         st.warning(
@@ -124,7 +124,7 @@ def page_overview():
     st.subheader("Dataset feasibility table")
     ft = ROOT / "docs" / "feasibility_table.csv"
     if ft.exists():
-        st.dataframe(pd.read_csv(ft), hide_index=True, use_container_width=True)
+        st.dataframe(pd.read_csv(ft), hide_index=True, width="stretch")
     card = ROOT / "docs" / "dataset_card.md"
     if card.exists():
         st.subheader("Dataset card")
@@ -147,7 +147,7 @@ def page_fleet():
     life = obs.groupby(ID).agg(observations=(TIDX, "count"), last_observed=(TVAL, "max")).reset_index()
     tab = units.merge(life, on=ID, how="left")
     tab["partition"] = tab[ID].map(part).fillna("not in split")
-    st.dataframe(tab, hide_index=True, use_container_width=True)
+    st.dataframe(tab, hide_index=True, width="stretch")
     st.caption("Failure times come from the publisher's documented end-of-life definition and are shown "
                "for retrospective evaluation only; they are never model inputs. Censored units have no failure time.")
 
@@ -155,11 +155,19 @@ def page_fleet():
 def _select_unit(obs, bundle, key):
     part = partition_of(bundle)
     test = [u for u, p in part.items() if p == "test"]
-    choices = sorted(test) if test else sorted(obs[ID].unique())
+    available = set(obs[ID].unique())
+    choices = sorted(set(test) & available) if test else sorted(available)
+    if not choices:
+        st.info("No recorded observations are available for the selected model's held-out units.")
+        st.stop()
     uid = st.selectbox("Held-out unit" if test else "Unit", choices, key=key)
     g = obs[obs[ID] == uid].sort_values(TIDX)
-    t_idx = st.slider("Recorded-data replay: advance through observed history (time_index)",
-                      int(g[TIDX].min()), int(g[TIDX].max()), int(g[TIDX].min()), key=key + "_t")
+    if len(g) == 1:
+        t_idx = int(g[TIDX].iloc[0])
+        st.info("Only one recorded observation is available for this unit.")
+    else:
+        t_idx = st.slider("Recorded-data replay: advance through observed history (time_index)",
+                          int(g[TIDX].min()), int(g[TIDX].max()), int(g[TIDX].max()), key=f"{key}_{uid}_t")
     return uid, g, t_idx
 
 
@@ -173,12 +181,13 @@ def page_sensors():
     uid, g, t_idx = _select_unit(obs, bundle, "sens")
     seen = g[g[TIDX] <= t_idx]
     chans = [c for c in obs.columns if c not in (ID, TIDX, TVAL) and not is_forbidden_input(c)]
-    pick = st.multiselect("Channels", chans, default=chans[: min(4, len(chans))])
+    defaults = [c for c in bundle.prep.kept if c in chans and c.startswith("sensor_")][:4] if bundle else []
+    pick = st.multiselect("Channels", chans, default=defaults or chans[:4])
     for c in pick:
         fig = go.Figure(go.Scatter(x=seen[TVAL], y=seen[c], mode="lines", name=c))
         fig.update_layout(height=220, margin=dict(l=10, r=10, t=30, b=10), title=c,
                           xaxis_title=f"elapsed time ({unit_label(bundle)})")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     st.caption(f"Showing {len(seen)} of {len(g)} recorded observations — only data up to the selected time.")
 
 
@@ -195,23 +204,27 @@ def page_prediction():
         now = pred.iloc[-1]
         st.markdown(provenance_caption(bundle, float(now[TVAL])))
         if now["status"] == INSUFFICIENT:
-            st.warning(f"Insufficient history: {len(pred)} of {bundle.seq_len} required observations. "
-                       "No prediction is made; nothing is padded.")
+            st.warning(f"Insufficient history: a prediction needs {bundle.seq_len} consecutive observations ending at the selected time. "
+                       f"There are {len(pred)} recorded observations so far. Gaps are not padded.")
         else:
             st.metric(f"Predicted RUL ({unit_label(bundle)})", f"{now['predicted_rul']:.1f}")
-        fig = go.Figure(go.Scatter(x=pred[TVAL], y=pred["predicted_rul"], name="predicted RUL"))
-        with st.expander("Retrospective evaluation (ground truth — not an input to the model)"):
-            u = units.set_index(ID).loc[uid]
-            if bool(u["event_observed"]):
-                truth = float(u["failure_time"]) - g[TVAL]
-                fig.add_trace(go.Scatter(x=g[TVAL], y=truth, name="actual RUL (retrospective)",
-                                         line=dict(dash="dash")))
-                st.write(f"Documented failure time: {u['failure_time']:g} {unit_label(bundle)}")
-            else:
-                st.write("Censored unit: failure not documented, no true RUL exists.")
+        fig = go.Figure(go.Scatter(x=pred[TVAL], y=pred["predicted_rul"],
+                                  mode="lines+markers", name="predicted RUL", connectgaps=False))
         fig.update_layout(height=350, xaxis_title=f"elapsed time ({unit_label(bundle)})",
                           yaxis_title=f"RUL ({unit_label(bundle)})")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
+        with st.expander("Retrospective evaluation (ground truth - not an input to the model)"):
+            u = units.set_index(ID).loc[uid]
+            if bool(u["event_observed"]):
+                seen = g[g[TIDX] <= t_idx]
+                retrospective = go.Figure(fig)
+                retrospective.add_trace(go.Scatter(x=seen[TVAL], y=float(u["failure_time"]) - seen[TVAL],
+                                                   name="actual RUL (retrospective)", line=dict(dash="dash")))
+                st.write(f"Reference end-of-life time: {u['failure_time']:g} {unit_label(bundle)}")
+                st.caption("For truncated test histories, this reference is reconstructed from the official RUL label.")
+                st.plotly_chart(retrospective, width="stretch")
+            else:
+                st.write("Censored unit: failure not documented, no true RUL exists.")
         st.download_button("Download predictions (CSV)", pred.to_csv(index=False), f"predictions_{uid}.csv")
         st.download_button("Download concise analysis (Markdown)", analysis_md(bundle, uid, pred),
                            f"analysis_{uid}.md")
@@ -223,7 +236,11 @@ def page_prediction():
                "health parameters) are ignored.")
     up = st.file_uploader("CSV", type="csv")
     if up is not None:
-        df = pd.read_csv(io.BytesIO(up.getvalue()), dtype={ID: str})
+        try:
+            df = pd.read_csv(io.BytesIO(up.getvalue()), dtype={ID: str})
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, ValueError) as exc:
+            st.error(f"Could not read this CSV: {exc}")
+            return
         if bundle is None:
             rep = validate_observations(df)
             show_report(rep)
@@ -268,7 +285,7 @@ def analysis_md(bundle, uid, pred) -> str:
 
 def page_maintenance():
     st.title("Maintenance Planning Demonstration")
-    st.error("Demonstration only. Thresholds below are configurable teaching values — not manufacturer-approved, "
+    st.caption("Demonstration only. Thresholds below are configurable teaching values — not manufacturer-approved, "
              "not certified, and not sufficient for any aircraft dispatch or maintenance decision.")
     bundle = get_bundle()
     obs, _ = get_data()
@@ -284,25 +301,46 @@ def page_maintenance():
         st.info("Set the plan threshold above the critical threshold to see alerts.")
         return
     st.caption(NOT_LIVE + " " + provenance_caption(bundle))
-    st.markdown("For each held-out unit, the replay finds the first recorded time at which the predicted RUL "
-                "fell to each threshold, then shows retrospectively how much documented life actually remained "
-                "at that moment (negative = the alert would have come after the documented failure).")
+    st.markdown("Alerts are checked only within the recorded history. Official test histories stop before "
+                "failure, so many engines never reach either threshold during replay.")
     _, units = get_data()
     ulook = units.set_index(ID)
     rows = []
     for uid in sorted(u for u, p in partition_of(bundle).items() if p == "test"):
-        # predict_history is causal: the value at each step uses only rows up to that step.
         pred = predict_upto(uid, int(obs.loc[obs[ID] == uid, TIDX].max()))
         ok = pred[pred["status"] == "ok"]
-        row = {ID: uid}
+        latest = float(ok["predicted_rul"].iloc[-1]) if len(ok) else None
+        status = ("Insufficient history" if latest is None else "Critical" if latest <= crit
+                  else "Plan maintenance" if latest <= warn else "Above alert thresholds")
+        row = {ID: uid, "Current status": status, f"Latest predicted RUL ({tu})": latest,
+               "Prediction coverage": f"{len(ok)} / {len(pred)} observations"}
         for name, thr in (("plan", warn), ("critical", crit)):
             hit = ok[ok["predicted_rul"] <= thr]
             t = float(hit[TVAL].iloc[0]) if len(hit) else None
-            row[f"first {name} alert at ({tu})"] = t
-            if t is not None and bool(ulook.loc[uid, "event_observed"]):
-                row[f"actual RUL at {name} alert ({tu}, retrospective)"] = float(ulook.loc[uid, "failure_time"]) - t
+            row[f"{name.title()} alert"] = ("Insufficient history" if not len(ok) else
+                                            "Reached in recorded history" if t is not None else
+                                            "Not reached in recorded history")
+            row[f"First {name} alert ({tu})"] = t
+            row[f"Actual RUL at {name} alert ({tu}, retrospective)"] = (
+                float(ulook.loc[uid, "failure_time"]) - t
+                if t is not None and bool(ulook.loc[uid, "event_observed"]) else None)
         rows.append(row)
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    if not rows:
+        st.info("No held-out test engines are available.")
+        return
+    table = pd.DataFrame(rows)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Critical now", int((table["Current status"] == "Critical").sum()))
+    c2.metric("Plan maintenance now", int((table["Current status"] == "Plan maintenance").sum()))
+    c3.metric("Above thresholds now", int((table["Current status"] == "Above alert thresholds").sum()))
+    table["_order"] = table["Current status"].map({"Critical": 0, "Plan maintenance": 1,
+                                                  "Above alert thresholds": 2, "Insufficient history": 3})
+    table = table.sort_values(["_order", ID]).drop(columns="_order")
+    st.caption("A blank alert time means the threshold was not reached, or there was insufficient history. "
+               "It is not a missing prediction. Current status uses the latest available prediction.")
+    st.dataframe(table, hide_index=True, width="stretch")
+    st.download_button("Download maintenance summary (CSV)", table.to_csv(index=False), "maintenance_summary.csv")
+
 
 
 def page_evaluation():
@@ -314,12 +352,14 @@ def page_evaluation():
         bundle = get_bundle()
         if bundle:
             st.markdown(provenance_caption(bundle))
+        if bundle and bundle.meta.get("test_protocol") == "final_window_per_engine":
+            st.caption("Official FD001 evaluation: one final observed window per test engine, scored against uncapped official RUL. Use pooled_rmse for benchmark RMSE; unit_avg_rmse equals MAE with one prediction per unit.")
         st.subheader("Held-out test units: model comparison")
-        st.dataframe(pd.read_csv(tab), hide_index=True, use_container_width=True)
+        st.dataframe(pd.read_csv(tab), hide_index=True, width="stretch")
         st.caption("unit_avg_* = per-unit metric averaged over units (primary; units are the independent samples). "
                    "pooled_* = every window weighted equally, so long-lived units dominate. "
                    "Error = predicted − actual; positive means overestimated remaining life.")
-        for f in ("pred_vs_actual", "test_trajectories", "residuals", "loss_curves", "baseline_comparison"):
+        for f in ("pred_vs_actual", "test_endpoints", "test_trajectories", "residuals", "loss_curves", "baseline_comparison"):
             p = REPORTS / "figures" / f"{f}.png"
             if p.exists():
                 st.image(str(p), caption=f.replace("_", " "))

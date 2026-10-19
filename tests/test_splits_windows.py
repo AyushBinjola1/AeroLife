@@ -67,3 +67,38 @@ def test_summary_features_shape():
     S, names = summarize_windows(X, ["a", "b", "c"])
     assert S.shape == (2, 18) and len(names) == 18
     np.testing.assert_allclose(S[:, names.index("slope_a")], 3.0)  # +3 per step in this array
+
+
+@pytest.mark.parametrize("length,stride", [(0, 1), (-1, 1), (3, 0), (3, -1)])
+def test_invalid_window_configuration(length, stride):
+    with pytest.raises(ValueError, match="positive"):
+        window_ends(10, length, stride)
+
+
+def test_windows_skip_missing_recordings(tables):
+    obs, _ = tables
+    obs = obs[(obs.unit_id == "u1") & (obs.time_index != 10)]
+    X, _, meta = make_windows(obs, ["time_index"], 5)
+    assert len(X) > 0
+    assert (np.diff(X[:, :, 0], axis=1) == 1).all()
+    assert not meta.time_index.between(11, 14).any()
+    assert 15 in set(meta.time_index)
+
+
+def test_zero_holdout_fractions_are_respected(tables):
+    _, units = tables
+    split = group_split(units, 0, 0, seed=42)
+    assert len(split["train"]) == 8
+    assert split["val"] == split["test"] == []
+
+
+@pytest.mark.parametrize("val,test", [(-0.1, 0.2), (0.6, 0.5), (1, 0), (0, -1)])
+def test_invalid_split_fractions(tables, val, test):
+    _, units = tables
+    with pytest.raises(ValueError):
+        group_split(units, val, test, seed=42)
+
+
+def test_duplicate_units_rejected():
+    with pytest.raises(ValueError, match="duplicate"):
+        explicit_split(["u1", "u1"], ["u2"], ["u3"])

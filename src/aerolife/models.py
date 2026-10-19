@@ -56,7 +56,7 @@ def train(model, X_tr, y_tr, X_val, y_val, *, epochs: int, batch_size: int, pati
     ]
     t0 = time.perf_counter()
     hist = model.fit(X_tr, y_tr, validation_data=(X_val, y_val), epochs=epochs,
-                     batch_size=batch_size, shuffle=True, callbacks=cbs, verbose=0)
+                     batch_size=batch_size, shuffle=True, callbacks=cbs, verbose=2)
     return hist.history, time.perf_counter() - t0
 
 

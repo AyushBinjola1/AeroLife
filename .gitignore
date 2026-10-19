@@ -10,3 +10,4 @@ data/raw/*
 data/canonical/*.csv
 artifacts/**/ckpt_*.keras
 artifacts/ablation/
+artifacts/*.log

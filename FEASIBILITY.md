@@ -1,3 +1,5 @@
+> Update 2026-10-20: The project owner explicitly authorized Decision A in chat. NASA C-MAPSS FD001 was downloaded directly from NASA's public archive. This supersedes the training block below for this project run; faculty approval is not claimed. See configs/dataset_spec.yaml and docs/dataset_card.md. The original real-data feasibility investigation is retained below.
+
 # Dataset Feasibility Gate
 
 **Date of investigation:** 2026-10-15

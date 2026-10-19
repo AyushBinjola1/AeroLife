@@ -54,15 +54,44 @@ def write_report(run_dir: Path, out_dir: Path, cfg: dict) -> pd.DataFrame:
     ax.set(xlabel=f"actual RUL ({unit})", ylabel=f"predicted RUL ({unit})", title="Held-out test windows")
     fig.tight_layout(); fig.savefig(out_dir / "figures" / "pred_vs_actual.png", dpi=150); plt.close(fig)
 
-    # Trajectories per test unit
-    ids = sorted(rnn[ID].unique())
-    fig, axes = plt.subplots(len(ids), 1, figsize=(7, 2.2 * len(ids)), squeeze=False)
-    for ax, uid in zip(axes[:, 0], ids):
-        g = rnn[rnn[ID] == uid].sort_values(TVAL)
-        ax.plot(g[TVAL], g["rul"], "k-", label="actual (retrospective)")
-        ax.plot(g[TVAL], g["pred"], "-", label="predicted")
-        ax.set(title=f"unit {uid}", xlabel=f"elapsed time ({unit})", ylabel=f"RUL ({unit})")
-    axes[0, 0].legend(fontsize=8)
+    # Endpoint comparison is distinct from causal replay trajectories.
+    endpoints = rnn.groupby(ID, sort=True).tail(1).sort_values(ID)
+    fig, ax = plt.subplots(figsize=(12, 4))
+    x = np.arange(len(endpoints))
+    ax.plot(x, endpoints["rul"], "k.", label="official RUL")
+    ax.plot(x, endpoints["pred"], ".", label="predicted RUL")
+    ax.set(xlabel="test engine (sorted by ID)", ylabel=f"RUL ({unit})",
+           title="Official test endpoint predictions (one per engine)")
+    ax.legend()
+    fig.tight_layout(); fig.savefig(out_dir / "figures" / "test_endpoints.png", dpi=150); plt.close(fig)
+
+    from .config import resolve
+    from .inference import load_bundle, predict_history
+    canonical = resolve(cfg, "canonical_dir") / "observations.csv"
+    replay = rnn
+    if canonical.exists() and (run_dir / "model.keras").exists():
+        obs = pd.read_csv(canonical, dtype={ID: str})
+        obs = obs[obs[ID].isin(meta["split"]["test"])]
+        output, validation = predict_history(obs, load_bundle(run_dir))
+        if not validation.ok:
+            raise ValueError("Replay validation failed: " + "; ".join(validation.errors))
+        references = endpoints.set_index(ID)
+        output["rul"] = output[ID].map(references["rul"] + references[TVAL]) - output[TVAL]
+        output.to_csv(out_dir / "tables" / "test_replay_selected_rnn.csv", index=False)
+        replay = output.rename(columns={"predicted_rul": "pred"})
+    ids = sorted(replay[ID].unique())[:12]
+    fig, axes = plt.subplots(4, 3, figsize=(14, 10), squeeze=False)
+    for ax, uid in zip(axes.flat, ids):
+        g = replay[replay[ID] == uid].sort_values(TVAL)
+        ax.plot(g[TVAL], g["rul"], "k--", marker="." if len(g) == 1 else None,
+                label="actual (retrospective)")
+        ax.plot(g[TVAL], g["pred"], marker="." if len(g) == 1 else None, label="predicted")
+        ax.set(title=uid, xlabel=f"elapsed time ({unit})", ylabel=f"RUL ({unit})")
+    for ax in list(axes.flat)[len(ids):]:
+        ax.set_visible(False)
+    axes[0, 0].legend(fontsize=7)
+    title = "Causal replay over recorded histories" if len(replay) > len(endpoints) else "Test endpoint comparisons"
+    fig.suptitle(title + " (first 12 test engines)")
     fig.tight_layout(); fig.savefig(out_dir / "figures" / "test_trajectories.png", dpi=150); plt.close(fig)
 
     # Residuals

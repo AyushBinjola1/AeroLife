@@ -21,6 +21,8 @@ def group_split(
 ) -> dict[str, list[str]]:
     """Assign whole units to train/val/test. Stratifies by condition when asked,
     so each condition is represented where possible (interpolation test)."""
+    if not (0 <= val_fraction < 1 and 0 <= test_fraction < 1 and val_fraction + test_fraction < 1):
+        raise ValueError("split fractions must be non-negative and sum to less than one")
     eligible = units[units["include"].astype(bool) & units["event_observed"].astype(bool)]
     rng = np.random.default_rng(seed)
     groups = (
@@ -36,7 +38,13 @@ def group_split(
         n_test = int(round(n * test_fraction))
         n_val = int(round(n * val_fraction))
         if n >= 3:
-            n_test, n_val = max(n_test, 1), max(n_val, 1)
+            n_test = max(n_test, 1) if test_fraction else 0
+            n_val = max(n_val, 1) if val_fraction else 0
+            while n_test + n_val >= n:
+                if n_test >= n_val:
+                    n_test -= 1
+                else:
+                    n_val -= 1
         split["test"] += ids[:n_test]
         split["val"] += ids[n_test : n_test + n_val]
         split["train"] += ids[n_test + n_val :]
@@ -63,6 +71,9 @@ def leave_one_unit_out(unit_ids: list[str]):
 
 def assert_disjoint(split: dict[str, list[str]]) -> None:
     names = list(split)
+    for name, ids in split.items():
+        if len(ids) != len(set(ids)):
+            raise ValueError(f"duplicate units in {name} partition")
     for i, a in enumerate(names):
         for b in names[i + 1 :]:
             both = set(split[a]) & set(split[b])

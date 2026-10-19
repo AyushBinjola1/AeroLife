@@ -16,6 +16,8 @@ from .schema import ID, TIDX, TVAL
 
 
 def window_ends(n: int, length: int, stride: int) -> np.ndarray:
+    if length < 1 or stride < 1:
+        raise ValueError("window length and stride must be positive")
     if n < length:
         return np.array([], dtype=int)
     return np.arange(n - 1, length - 2, -stride)[::-1]
@@ -35,7 +37,10 @@ def make_windows(
         g = g.sort_values(TIDX)
         vals = g[feature_cols].to_numpy(dtype=np.float32)
         ends = window_ends(len(g), length, stride)
+        indices = g[TIDX].to_numpy()
         for e in ends:
+            if not np.all(np.diff(indices[e - length + 1 : e + 1]) == 1):
+                continue  # missing recordings cannot be treated as consecutive time steps
             xs.append(vals[e - length + 1 : e + 1])
             row = {ID: uid, TIDX: int(g[TIDX].iloc[e]), TVAL: float(g[TVAL].iloc[e]),
                    "window_start_index": int(g[TIDX].iloc[e - length + 1])}

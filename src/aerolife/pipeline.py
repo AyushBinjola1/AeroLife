@@ -35,6 +35,15 @@ def load_canonical(canonical_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def build_partitions(cfg, spec, obs, units, split, seq_len: int | None = None):
+    from .splits import assert_disjoint
+    assert_disjoint(split)
+    eligible = set(units.loc[units["include"].astype(bool) & units["event_observed"].astype(bool), ID])
+    for name in ("train", "val", "test"):
+        if not split.get(name):
+            raise ValueError(f"empty {name} partition")
+        invalid = set(split[name]) - eligible
+        if invalid:
+            raise ValueError(f"unknown, excluded or censored units in {name}: {sorted(invalid)}")
     cap = cfg["targets"].get("rul_cap")
     labelled = add_rul(obs, units, cap)
     channels = input_columns(obs, list(spec["input_columns"]))
@@ -51,6 +60,15 @@ def build_partitions(cfg, spec, obs, units, split, seq_len: int | None = None):
         X, y, meta = make_windows(z, prep.feature_names, L, stride, target_col="rul_target",
                                   extra_meta=("rul", "rul_target"))
         parts[k] = {"X": X, "y": y, "meta": meta}
+        if k == "test" and spec.get("test_last_window_only"):
+            if set(meta.get(ID, [])) != set(split[k]):
+                raise ValueError("official test evaluation requires sufficient consecutive history for every test engine")
+            indices = meta.groupby(ID, sort=False).tail(1).index.to_numpy()
+            final_steps = meta.loc[indices].set_index(ID)[TIDX].sort_index()
+            expected_steps = o.groupby(ID)[TIDX].max().sort_index()
+            if not final_steps.equals(expected_steps):
+                raise ValueError("official test evaluation requires a consecutive window ending at every engine's final observation")
+            parts[k] = {"X": X[indices], "y": y[indices], "meta": meta.loc[indices].reset_index(drop=True)}
     lifetimes = units.set_index(ID).loc[split["train"], "failure_time"].to_numpy(float)
     return prep, parts, lifetimes, L
 
@@ -124,6 +142,8 @@ def run_experiment(cfg, spec, obs, units, split, out_dir: Path, seq_len: int | N
 
     meta = {
         "dataset_name": spec["name"], "time_unit": spec["time_unit"],
+        "dataset_source": spec.get("source"),
+        "test_protocol": "final_window_per_engine" if spec.get("test_last_window_only") else "all_windows",
         "time_step_meaning": spec.get("time_step_meaning"),
         "model_version": cfg["project"]["model_version"], "cell": mcfg["type"],
         "selected_seed": best["seed"], "sequence_length": L, "stride": cfg["windowing"]["stride"],

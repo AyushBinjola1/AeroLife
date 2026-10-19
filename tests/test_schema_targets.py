@@ -73,3 +73,26 @@ def test_negative_rul_raises(tables):
     units = units.copy(); units.loc[units.unit_id == "u1", "failure_time"] = 30.0
     with pytest.raises(ValueError):
         add_rul(obs, units)
+
+
+@pytest.mark.parametrize("column,value", [("unit_id", None), ("unit_id", " "),
+    ("time_value", np.inf), ("time_value", -1), ("time_index", -1)])
+def test_invalid_identifiers_and_time_are_rejected(tables, column, value):
+    obs, _ = tables
+    bad = obs.copy()
+    bad.loc[0, column] = value
+    assert not validate_observations(bad).ok
+
+
+def test_nullable_missing_index_rejected(tables):
+    obs, _ = tables
+    obs = obs.copy()
+    obs["time_index"] = obs.time_index.astype("Int64")
+    obs.loc[0, "time_index"] = pd.NA
+    assert not validate_observations(obs).ok
+
+
+def test_duplicate_column_names_rejected(tables):
+    obs, _ = tables
+    bad = pd.concat([obs, obs[["ch_a"]]], axis=1)
+    assert not validate_observations(bad).ok

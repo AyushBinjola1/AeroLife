@@ -1,15 +1,4 @@
-"""Dataset adapters: raw publisher files -> canonical observations/units tables.
-
-No adapter is registered. Writing one is a dataset-specific step and is
-deliberately left undone until the faculty decision in FEASIBILITY.md is
-recorded (Decision A or B). An adapter must:
-
-* read files from data/raw/ only, never modifying them;
-* emit observations with unit_id, time_index, time_value (+ measured channels);
-* emit units with event_observed / failure_time taken from the publisher's
-  documented end-of-life definition, NaN failure_time for censored units;
-* document every parsing rule and exclusion in the dataset card.
-"""
+"""Dataset adapters for immutable publisher files; NASA C-MAPSS FD001 is registered."""
 
 from __future__ import annotations
 
@@ -28,3 +17,7 @@ class DatasetAdapter(ABC):
 
 
 REGISTRY: dict[str, type[DatasetAdapter]] = {}
+
+from .cmapss import CMAPSSFD001
+
+REGISTRY["cmapss_fd001"] = CMAPSSFD001

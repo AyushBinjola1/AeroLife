@@ -1,0 +1,45 @@
+name: NASA C-MAPSS FD001 (simulated)
+adapter: cmapss_fd001
+time_unit: cycles
+time_step_meaning: One simulated operational cycle; elapsed time is original cycle
+  minus one.
+input_columns:
+- setting_1
+- setting_2
+- setting_3
+- sensor_1
+- sensor_2
+- sensor_3
+- sensor_4
+- sensor_5
+- sensor_6
+- sensor_7
+- sensor_8
+- sensor_9
+- sensor_10
+- sensor_11
+- sensor_12
+- sensor_13
+- sensor_14
+- sensor_15
+- sensor_16
+- sensor_17
+- sensor_18
+- sensor_19
+- sensor_20
+- sensor_21
+test_last_window_only: true
+event_definition: 'Training: final recorded simulated failure cycle. Test: last recorded
+  cycle plus official RUL label; future event supplied by publisher, not observed
+  in test history.'
+censoring: Test histories truncated; official RUL labels supplied.
+source:
+  url: https://data.nasa.gov/docs/legacy/CMAPSSData.zip
+  catalog: https://data.nasa.gov/dataset/cmapss-jet-engine-simulated-data
+  mirror_used: null
+  citation: Saxena, Goebel, Simon and Eklund (2008), Damage Propagation Modeling for
+    Aircraft Engine Run-to-Failure Simulation, PHM08.
+  release: CMAPSSData.zip, FD001
+  retrieved_on: '2026-10-20'
+  usage_terms: Publicly downloadable from NASA; retain attribution; no separate license
+    included in archive.

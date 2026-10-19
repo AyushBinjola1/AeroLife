@@ -88,6 +88,13 @@ def validate_observations(
     if df.empty:
         rep.error("table has no rows")
         return rep
+    if df.columns.duplicated().any():
+        rep.error("duplicate column names")
+        return rep
+    if df[ID].isna().any() or df[ID].astype(str).str.strip().eq("").any():
+        rep.error("unit_id must not be missing or blank")
+    if df[ID].map(type).nunique() > 1:
+        rep.error("unit_id must use a consistent type")
 
     leaky = [c for c in df.columns if c not in OBS_REQUIRED and is_forbidden_input(c)]
     if leaky:
@@ -120,6 +127,15 @@ def validate_observations(
         rep.error("time_index must be integer")
     if not pd.api.types.is_numeric_dtype(df[TVAL]):
         rep.error("time_value must be numeric")
+    else:
+        if not np.isfinite(df[TVAL].to_numpy(dtype=float, na_value=np.nan)).all():
+            rep.error("time_value must contain finite values")
+        if (df[TVAL] < 0).any():
+            rep.error("time_value must be non-negative elapsed time")
+    if df[TIDX].isna().any():
+        rep.error("time_index must not be missing")
+    elif pd.api.types.is_integer_dtype(df[TIDX]) and (df[TIDX] < 0).any():
+        rep.error("time_index must be non-negative")
     if not rep.ok:
         return rep
 

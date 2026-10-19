@@ -8,14 +8,21 @@ from conftest import ROOT, SPEC, small_cfg
 from aerolife.config import DatasetGateBlocked, load_config, require_dataset
 
 
-def test_default_config_is_blocked():
+def test_explicit_blocked_config_is_rejected():
+    cfg = load_config()
+    cfg["dataset"]["gate_status"] = "blocked"
     with pytest.raises(DatasetGateBlocked):
-        require_dataset(load_config())
+        require_dataset(cfg)
 
 
 @pytest.mark.parametrize("script", ["ingest.py", "make_splits.py", "train.py", "evaluate.py"])
-def test_dataset_scripts_refuse_while_blocked(script):
-    r = subprocess.run([sys.executable, str(ROOT / "scripts" / script)], capture_output=True, text=True)
+def test_dataset_scripts_refuse_while_blocked(script, tmp_path):
+    import yaml
+    cfg = load_config()
+    cfg["dataset"]["gate_status"] = "blocked"
+    path = tmp_path / "blocked.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+    r = subprocess.run([sys.executable, str(ROOT / "scripts" / script), "--config", str(path)], capture_output=True, text=True)
     assert r.returncode == 2 and "BLOCKED" in r.stderr
 
 
